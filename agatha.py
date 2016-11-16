@@ -4,7 +4,7 @@ from collections import namedtuple
 
 def PacketHandler(data,packetinfo):
 	DataPacket = namedtuple(packetinfo[2],packetinfo[3])
-	packet = DataPacket._make(unpack(packetinfo[4],data[0:packetinfo[1]]))		
+	packet = DataPacket._make(unpack(packetinfo[4],data))		
 
 	for name in packet._fields:
 		print (name, getattr(packet,name))
@@ -26,7 +26,7 @@ if __name__ == "__main__":
 		#Read some iiiii
 		curr = port.read()
 
-		if curr == b'\x55' and prev == b'\xaa':
+		if curr == b'\x55' and prev == b'\xAA':
 			print("Start of packet")
 			
 			packetid = port.read()
