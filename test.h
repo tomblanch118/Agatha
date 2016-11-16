@@ -1,9 +1,11 @@
 #ifndef __TEST_H
 #define __TEST_H
 
+#define SENSORDATAPACKET 0x01
+#define STATUS_TPACKET 0x02
 
 typedef struct {
-  uint8_t id;
+  uint8_t id ;
   float h1 ;
   float t1;
   float h2;

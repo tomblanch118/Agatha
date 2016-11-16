@@ -1,0 +1,16 @@
+{
+    "SensorData": [
+        47,
+        "SensorData",
+        " id h1 t1 h2 t2 h3 t3 soil_t soil_h batt r g b bob",
+        "<BfffffffffHHHL",
+        1
+    ],
+    "Status_t": [
+        5,
+        "Status_t",
+        " id packets_sent something",
+        "<BHH",
+        2
+    ]
+}
