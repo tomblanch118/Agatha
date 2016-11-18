@@ -1,3 +1,4 @@
+#Author: Tom Blanchard
 import serial
 import sys
 import json
@@ -13,22 +14,24 @@ def PacketHandler(data,packetinfo):
 	
 
 if __name__ == "__main__":
-	# shit happens
 	
-#	dic = {b'\x01':(42,'DataPacket','h1 t1 h2 t2 h3 t3 soilt soilh batt r g b', '<fffffffffHHH'),
-#			b'\x02':(4,'StatusPacket','packets_sent something', '<HH')}
+	#Packet info dictionary
 	dic = {}
 	
+	#Read packet format config file 
 	print("Loading packet configs...")
 	with open('data.txt','r') as handle:
 		parse = json.load(handle)
 
-		
+	
+	#Constuct the format dictionary, indexed by packet id
 	for x in parse.keys():
 		print("Struct", parse[x][1],"found.")
-		y = parse[x][4]
-		dic[y] = (parse[x][0],parse[x][1],parse[x][2],parse[x][3])
-		comport = None	
+		pid = parse[x][4]
+		dic[pid] = (parse[x][0],parse[x][1],parse[x][2],parse[x][3])
+	
+	#See if we were passed a comport
+	comport = None	
 	argv_index = 0
 	for arg in sys.argv:
 		argv_index += 1
@@ -36,7 +39,8 @@ if __name__ == "__main__":
 			comport = sys.argv[argv_index]
 	
 	connected = False
-	#port = serial.Serial("COM7", 115200, timeout=None)
+	
+	#Try to connect to serial port
 	while not connected:
 		if not comport:
 			comport = input("Enter com port:")
@@ -46,13 +50,11 @@ if __name__ == "__main__":
 		except serial.serialutil.SerialException:
 			print("Failed to connect to",comport)
 			comport = None
-	#port = serial.Serial("com7", 115200, timeout=None)	
 
 	print(port.name)
 
 	prev = 0
 	curr = 0
-
 
 	while True:
 		curr = port.read()
@@ -66,14 +68,15 @@ if __name__ == "__main__":
 			packetinfo = dic.get(packetid)
 			
 			if packetinfo:
-				print("Expected packet length:",packetinfo[0]-1)
+				packetlength = packetinfo[0] - 1
+				print("Expected packet length:",packetlength)
 				#Read packet length number of bytes
-				data = port.read(packetinfo[0]-1)
+				data = port.read(packetlength)
 				
 				test = bytearray()
 				test.extend(tmp)
 				test.extend(data)
-				if len(data) == packetinfo[0]-1:
+				if len(data) == packetlength:
 					PacketHandler(test,packetinfo)
 				else:
 					print("Couldn't read correct number of bytes for this packet")
