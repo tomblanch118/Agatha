@@ -2,21 +2,79 @@
 import serial
 import sys
 import json
+import time
 from struct import *
 from collections import namedtuple
+from multiprocessing import Process, Queue, freeze_support
+import signal
+
+
+def signal_handler(signal, frame):
+	print('You pressed Ctrl+C!')
+	#broker.join()
+	sys.exit(0)
+
+#import logging, multiprocessing
+#mpl = multiprocessing.log_to_stderr()
+#mpl.setLevel(logging.INFO)
 
 def PacketHandler(data,packetinfo):
 	DataPacket = namedtuple(packetinfo[1],packetinfo[2])
-	packet = DataPacket._make(unpack(packetinfo[3],data))		
+	packet = (DataPacket._make(unpack(packetinfo[3],data)))._asdict()		
 
-	for name in packet._fields:
-		print (name, getattr(packet,name))
+	#for name in packet._fields:
+	#	print (name, getattr(packet,name))
+	packet_q.put(packet)
 	
+		
+def PacketBroker(pq):
+	#signal.signal(signal.SIGINT, signal_handler)
+	message = pq.get()
+	
+	if message:
+		print(message)
+
+	while True:		
+		#print("TEST")
+		if not pq.empty():
+			print(pq.get())
+		time.sleep(0.01)
+		#print(pq.qsize())
+			
+	
+def InitBroker():
+	print("Starting broker process...")
+	
+	#packet_q = Queue()
+
+	packet_q.put("<Packet broker online>")
+	broker = Process(
+			target=PacketBroker,
+			args=(packet_q,)
+	)
+	
+	#processes.append(p) 
+	broker.start()
+
+	while not packet_q.empty():
+		pass
+
 
 if __name__ == "__main__":
+
+	freeze_support()
+	
+	print("AGATHA VERSION: The Mysterious Affair at Styles")
+
+	packet_q = Queue()
+	
+	InitBroker()
 	
 	#Packet info dictionary
 	dic = {}
+
+	signal.signal(signal.SIGINT, signal_handler)
+
 	
 	#Read packet format config file 
 	print("Loading packet configs...")
@@ -39,8 +97,9 @@ if __name__ == "__main__":
 			comport = sys.argv[argv_index]
 	
 	connected = False
-	
+
 	#Try to connect to serial port
+
 	while not connected:
 		if not comport:
 			comport = input("Enter com port:")
@@ -60,7 +119,7 @@ if __name__ == "__main__":
 		curr = port.read()
 
 		if curr == b'\x55' and prev == b'\xAA':
-			print("Start of packet")
+			#print("Start of packet")
 			
 			tmp = port.read()
 			packetid = ord(tmp)
@@ -69,13 +128,16 @@ if __name__ == "__main__":
 			
 			if packetinfo:
 				packetlength = packetinfo[0] - 1
-				print("Expected packet length:",packetlength)
+				#print("Expected packet length:",packetlength)
 				#Read packet length number of bytes
 				data = port.read(packetlength)
 				
 				test = bytearray()
 				test.extend(tmp)
 				test.extend(data)
+				
+				#crc = port.read()
+				
 				if len(data) == packetlength:
 					PacketHandler(test,packetinfo)
 				else:
