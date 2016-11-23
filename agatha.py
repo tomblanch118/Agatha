@@ -8,45 +8,71 @@ from collections import namedtuple
 from multiprocessing import Process, Queue, freeze_support
 import signal
 
-
-def signal_handler(signal, frame):
-	print('You pressed Ctrl+C!')
-	#broker.join()
-	sys.exit(0)
-
+test_keep_going = True
 #import logging, multiprocessing
 #mpl = multiprocessing.log_to_stderr()
-#mpl.setLevel(logging.INFO)
+#mpl.setLevel(logging.DEBUG)
+
+def signal_handler(signal, frame):
+	print('Main process ending')
+	broker.join()
+	print('ended')
+	sys.exit(0)
 
 def PacketHandler(data,packetinfo):
 	DataPacket = namedtuple(packetinfo[1],packetinfo[2])
 	packet = (DataPacket._make(unpack(packetinfo[3],data)))._asdict()		
 
-	#for name in packet._fields:
-	#	print (name, getattr(packet,name))
 	packet_q.put(packet)
-	
-		
+
 def PacketBroker(pq):
-	#signal.signal(signal.SIGINT, signal_handler)
-	message = pq.get()
+	def signal_handler2(signal, frame):
+		print('Broker process ending')
+		global test_keep_going
+		test_keep_going = False
 	
+	signal.signal(signal.SIGINT, signal_handler2)
+	message = pq.get()
+
 	if message:
 		print(message)
 
-	while True:		
-		#print("TEST")
+	global test_keep_going
+	while test_keep_going:		
 		if not pq.empty():
 			print(pq.get())
+			#pq.task_done()
 		time.sleep(0.01)
-		#print(pq.qsize())
-			
 	
-def InitBroker():
+	print("Broker Done")
+	
+		
+
+def crc(data,crc):
+	
+	val = 0
+	
+	for v in data:
+		val += v
+	
+	val = val % 256
+	val = (val ^ 255)+1
+	 
+	print(ord(crc))
+	print(val)
+	 
+	 
+if __name__ == "__main__":
+
+	freeze_support()
+	
+	print("AGATHA VERSION: The Mysterious Affair at Styles")
+
+	packet_q = Queue()
+	
 	print("Starting broker process...")
 	
 	#packet_q = Queue()
-
 	packet_q.put("<Packet broker online>")
 	broker = Process(
 			target=PacketBroker,
@@ -60,16 +86,6 @@ def InitBroker():
 		pass
 
 
-if __name__ == "__main__":
-
-	freeze_support()
-	
-	print("AGATHA VERSION: The Mysterious Affair at Styles")
-
-	packet_q = Queue()
-	
-	InitBroker()
-	
 	#Packet info dictionary
 	dic = {}
 
@@ -90,6 +106,7 @@ if __name__ == "__main__":
 	
 	#See if we were passed a comport
 	comport = None	
+	
 	argv_index = 0
 	for arg in sys.argv:
 		argv_index += 1
@@ -97,7 +114,6 @@ if __name__ == "__main__":
 			comport = sys.argv[argv_index]
 	
 	connected = False
-
 	#Try to connect to serial port
 
 	while not connected:
@@ -136,7 +152,12 @@ if __name__ == "__main__":
 				test.extend(tmp)
 				test.extend(data)
 				
-				#crc = port.read()
+				
+				c = port.read()
+				crc(test,c)
+				
+				#crc = port
+				##.read()
 				
 				if len(data) == packetlength:
 					PacketHandler(test,packetinfo)
