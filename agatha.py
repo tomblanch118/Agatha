@@ -3,130 +3,123 @@ import serial
 import sys
 import json
 import time
+import broker
+import argparse
 from struct import *
 from collections import namedtuple
 from multiprocessing import Process, Queue, freeze_support
 import signal
 
-test_keep_going = True
+
 #import logging, multiprocessing
 #mpl = multiprocessing.log_to_stderr()
 #mpl.setLevel(logging.DEBUG)
 
-def signal_handler(signal, frame):
-	print('Main process ending')
-	broker.join()
-	print('ended')
-	sys.exit(0)
+dbg = False
+agatha_version = "The Mysterious Affair at Styles"
 
-def PacketHandler(data,packetinfo):
-	DataPacket = namedtuple(packetinfo[1],packetinfo[2])
-	packet = (DataPacket._make(unpack(packetinfo[3],data)))._asdict()		
 
-	packet_q.put(packet)
-
-def PacketBroker(pq):
-	def signal_handler2(signal, frame):
-		print('Broker process ending')
-		global test_keep_going
-		test_keep_going = False
-	
-	signal.signal(signal.SIGINT, signal_handler2)
-	message = pq.get()
-
-	if message:
+def debug(message):
+	if dbg==True:
 		print(message)
-
-	global test_keep_going
-	while test_keep_going:		
-		if not pq.empty():
-			print(pq.get())
-			#pq.task_done()
-		time.sleep(0.01)
-	
-	print("Broker Done")
-	
 		
+"""
 
+"""
+def signal_handler(signal, frame):
+	debug('Agatha received SIGINT')
+	broker.join()
+	debug('Joined Broker process')
+	print("Agatha is done.")
+	sys.exit(0)
+	
+"""
+Computes a CRC of the bytes in data and compare it with crc.
+Returns True if they match and False otherwise
+"""
 def crc(data,crc):
-	
 	val = 0
-	
 	for v in data:
 		val += v
 	
-	val = val % 256
-	val = (val ^ 255)+1
-	 
-	print(ord(crc))
-	print(val)
-	 
-	 
-if __name__ == "__main__":
-
-	freeze_support()
+	#mod 256 to simulate an uint8_t
+	val = val % 256 
+	#get twos complement
+	val = (val ^ 255) + 1
 	
-	print("AGATHA VERSION: The Mysterious Affair at Styles")
+	return ord(crc) == val
+	 	
+		
+if __name__ == "__main__":
+	#Required for multiprocessing suppor on windows
+	freeze_support()
+
+	#Read cmd line arguments 
+	parser = argparse.ArgumentParser(prog='Agatha')
+	parser.add_argument("-v", "--verbose", action='count', help="Get more verbose/debug output.")
+	parser.add_argument("-p", "--port", nargs=1, default=None, help="Specify serial device to connect to.")
+	parser.add_argument("-b", "--baud", nargs=1, default=115200, type=int, help="Baud rate for the serial device.")
+
+	my_args = parser.parse_args()
+	comport = str(my_args.port)
+	baud = my_args.baud
+	
+	if my_args.verbose:
+		dbg = True	
+	
+	#Print version
+	print("Agatha:", agatha_version)
 
 	packet_q = Queue()
 	
-	print("Starting broker process...")
+	debug("Starting broker process...")
 	
-	#packet_q = Queue()
+	#Create broker process
 	packet_q.put("<Packet broker online>")
 	broker = Process(
-			target=PacketBroker,
+			target=broker.PacketBroker,
 			args=(packet_q,)
 	)
-	
-	#processes.append(p) 
+
 	broker.start()
 
+	#Register a signal handler for interrupt so we can gracefully exit
+	signal.signal(signal.SIGINT, signal_handler)
+
+	#Wait for the broker thread to be ready
 	while not packet_q.empty():
 		pass
-
-
+		
 	#Packet info dictionary
 	dic = {}
 
-	signal.signal(signal.SIGINT, signal_handler)
-
-	
 	#Read packet format config file 
-	print("Loading packet configs...")
+	debug("Loading packet configs...")
 	with open('data.txt','r') as handle:
 		parse = json.load(handle)
 
 	
 	#Constuct the format dictionary, indexed by packet id
 	for x in parse.keys():
-		print("Struct", parse[x][1],"found.")
+		debug(("Struct: "+parse[x][1]+" found."))
 		pid = parse[x][4]
 		dic[pid] = (parse[x][0],parse[x][1],parse[x][2],parse[x][3])
 	
 	#See if we were passed a comport
-	comport = None	
-	
-	argv_index = 0
-	for arg in sys.argv:
-		argv_index += 1
-		if arg == "-p" and argv_index < len(sys.argv):
-			comport = sys.argv[argv_index]
-	
 	connected = False
+	
 	#Try to connect to serial port
-
 	while not connected:
 		if not comport:
 			comport = input("Enter com port:")
 		try:
-			port = serial.Serial(comport, 115200, timeout=None)
+			port = serial.Serial(comport, 115200, timeout=1)
 			connected = True
 		except serial.serialutil.SerialException:
-			print("Failed to connect to",comport)
+			print("Failed to connect to:",comport)
 			comport = None
 
-	print(port.name)
+	print("Connected to:",port.name)
 
 	prev = 0
 	curr = 0
@@ -134,37 +127,52 @@ if __name__ == "__main__":
 	while True:
 		curr = port.read()
 
+		#Look for start of packet bytes
 		if curr == b'\x55' and prev == b'\xAA':
-			#print("Start of packet")
+		
+			#Get the packetid
+			packetid_byte = port.read()
+			packetid = ord(packetid_byte)
 			
-			tmp = port.read()
-			packetid = ord(tmp)
-			
+			#Look up the information on this packet
 			packetinfo = dic.get(packetid)
 			
+			debug("Reading packet: "+(packetinfo[1]))
+
+			#If we know what the packet is process it
 			if packetinfo:
+			
+				#We've read the first byte of the packet so subtract that from the length
 				packetlength = packetinfo[0] - 1
-				#print("Expected packet length:",packetlength)
+				
+				debug(("Expected packet length: "+str(packetlength)))
+				
 				#Read packet length number of bytes
 				data = port.read(packetlength)
 				
-				test = bytearray()
-				test.extend(tmp)
-				test.extend(data)
+				debug(("Read packet length: "+str(len(data))))
+			
+				#Read the remaining data
+				data_bytes = bytearray()
+				data_bytes.extend(packetid_byte)
+				data_bytes.extend(data)
 				
-				
-				c = port.read()
-				crc(test,c)
-				
-				#crc = port
-				##.read()
-				
+				#If the length is what we expect carry on
 				if len(data) == packetlength:
-					PacketHandler(test,packetinfo)
-				else:
-					print("Couldn't read correct number of bytes for this packet")
 				
+					#Read crc byte and check if it's valid
+					crc_byte = port.read()
+					packet_valid = crc(data_bytes,crc_byte)
+					
+					#Push valid packets onto the queue to the broker process
+					if packet_valid:
+						packet_q.put(data_bytes)
+					else:
+						debug("CRC of packet did not match.")
+				else:
+					debug("Number of packets read didn't match expected length.")
 			else:
-				print("Can't find this packet")
+				debug("No information on this packet type.")
+				
 		prev = curr
 	

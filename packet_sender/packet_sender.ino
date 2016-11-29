@@ -23,13 +23,15 @@ void setup() {
 
   Serial.begin(115200);
 
-  sts.id=STATUS_TPACKET;
-  sts.packets_sent = 123;
-  sts.something = 12;
-  writeStruct((uint8_t *)&sts, sizeof(sts));
-}
 
+}
+uint16_t smt = 0;
 void loop() {
   // put your main code here, to run repeatedly:
-
+  sts.id = STATUS_TPACKET;
+  sts.packets_sent = 123;
+  sts.something = smt;
+  writeStruct((uint8_t *)&sts, sizeof(sts));
+  delay(1000);
+  smt++;
 }
