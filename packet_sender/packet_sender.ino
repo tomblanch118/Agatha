@@ -2,7 +2,22 @@
 SensorData data;
 struct Status_t sts;
 
-void writeStruct(uint8_t * sp, size_t ssize)
+void writeDebug(unsigned long t)
+{
+  Serial.write(0xAA);
+  Serial.write(0x55);
+  Serial.write(0x00);
+
+  //Serial.write(0x05);
+  char buf [10];
+  //unsigned long aaa = 10000;
+  sprintf(buf, "%lu", t);  
+  uint8_t len = strlen(buf);
+  Serial.write(len);
+  Serial.println(buf);
+}
+
+void writeStruct(uint8_t * sp, size_t ssize, uint8_t rssi, uint8_t nodeid)
 {
   Serial.write(0xAA);
   Serial.write(0x55);
@@ -13,8 +28,12 @@ void writeStruct(uint8_t * sp, size_t ssize)
     Serial.write(*ss);
     crc += *ss;
   }
-
+  crc += nodeid;
+  crc += rssi;
   crc  = (crc ^ 0xFF) + 1;
+
+  Serial.write(nodeid);
+  Serial.write(rssi);
   Serial.write(crc);
 }
 
@@ -31,7 +50,49 @@ void loop() {
   sts.id = STATUS_TPACKET;
   sts.packets_sent = 123;
   sts.something = smt;
-  writeStruct((uint8_t *)&sts, sizeof(sts));
+
+  unsigned long ss = millis();
+  //writeStruct((uint8_t *)&sts, sizeof(sts), 40, 1);
+  fakeData();
+  writeStruct((uint8_t *)&data, sizeof(data), 66, 7);
+  
+  while(!Serial.available());
+  uint8_t a = Serial.read();
+  uint8_t b = Serial.read();
+  delay(5);
+  if(a == 0x01 && b == 0xff)
+  {
+    ss = millis() -ss;
+    writeDebug(ss);
+  }
+  //fakeData();
+  //writeStruct((uint8_t *)&data, sizeof(data), 66, 7);
+  //delay(1000);
+
+  //writeDebug();
+  //delay(1000);
   delay(1000);
   smt++;
 }
+
+void fakeData()
+{
+  data.id = SENSORDATAPACKET;
+  data.h1 = 1.1;
+  data.t1 = 100.23;
+  data.h2 = 2.2;
+  data.t2 = 200.34;
+  data.h3 = 3.3;
+  data.t3 = 300.45;
+
+  data.soil_t = 33;
+  data.soil_h = 44;
+
+  data.batt = 4.765;
+
+  data.r = 1024;
+  data.g = 2048;
+  data.b = 32000;
+  data.bob = 1;
+}
+
