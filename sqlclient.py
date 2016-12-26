@@ -34,8 +34,8 @@ def read_struct_config(config_filename):
 	return dic
 	
 def signal_handler(signal, frame):
-	global interrupted
 	interrupted = True
+	global interrupted
 	socket.close()
 	response = bytearray(b'\x00\x02')
 	response.extend(map(ord,"SQLCLIENT"))
@@ -87,15 +87,15 @@ if __name__ == "__main__":
 				#Data contains the packet plus the rssi and nodeid at the end, we need to strip them off before unpacking.
 				DataPacket = namedtuple(packetinfo[1],packetinfo[2])
 				packet = (DataPacket._make(unpack(packetinfo[3],data[0:-2])))._asdict()	
-				
-				
+								
 				for x in packet.keys():
 					print(x,":",packet[x])
 				index  = len(data)
 				print("id:",data[index-2],"\nrssi:",data[index-1])
-	
+				
 				response = bytearray(b'\x01\xff')
 				sender.send(response)
+				#print(int(round(time.time() * 1000)))
 				
 			else:
 				print("Unknown packet...")
@@ -105,6 +105,6 @@ if __name__ == "__main__":
 		
 		if interrupted:
 			break
-		time.sleep(0.005)
+		time.sleep(0.001)
 	print("Finished")
 	sys.exit(1)

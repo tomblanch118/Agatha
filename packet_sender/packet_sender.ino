@@ -11,10 +11,23 @@ void writeDebug(unsigned long t)
   //Serial.write(0x05);
   char buf [10];
   //unsigned long aaa = 10000;
-  sprintf(buf, "%lu", t);  
+  sprintf(buf, "%lu", t);
   uint8_t len = strlen(buf);
   Serial.write(len);
   Serial.println(buf);
+}
+
+#define DBGLEN 100
+void writeDebug(char * const text)
+{
+  //Start bytes and 0x00 debug packet id
+  Serial.write(0xAA);
+  Serial.write(0x55);
+  Serial.write(0x00);
+
+  //Write length of text and text
+  Serial.write(strlen(text));
+  Serial.println(text);
 }
 
 void writeStruct(uint8_t * sp, size_t ssize, uint8_t rssi, uint8_t nodeid)
@@ -40,8 +53,9 @@ void writeStruct(uint8_t * sp, size_t ssize, uint8_t rssi, uint8_t nodeid)
 
 void setup() {
 
-  Serial.begin(115200);
-
+  Serial.begin(250000);
+  pinMode(13, OUTPUT);
+  writeDebug("Hello I am bob!");
 
 }
 uint16_t smt = 0;
@@ -52,24 +66,16 @@ void loop() {
   sts.something = smt;
 
   unsigned long ss = millis();
+  digitalWrite(13, HIGH);
   //writeStruct((uint8_t *)&sts, sizeof(sts), 40, 1);
   fakeData();
   writeStruct((uint8_t *)&data, sizeof(data), 66, 7);
-  
-  while(!Serial.available());
-  uint8_t a = Serial.read();
-  uint8_t b = Serial.read();
-  delay(5);
-  if(a == 0x01 && b == 0xff)
-  {
-    ss = millis() -ss;
-    writeDebug(ss);
-  }
+
   //fakeData();
   //writeStruct((uint8_t *)&data, sizeof(data), 66, 7);
   //delay(1000);
 
-  //writeDebug();
+  writeDebug(100  );
   //delay(1000);
   delay(1000);
   smt++;

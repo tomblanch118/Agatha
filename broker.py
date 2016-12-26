@@ -13,6 +13,11 @@ def broker_signal_handler(signal, frame):
 #Do we need locks on nodeids to stop multiple processes trying to communicate with a node at the same time?
 #
 
+def goodbye(socket):
+	pkt = bytearray()
+	pkt.extend(b'\x00\x00\x01')
+	socket.send(pkt)
+
 def PacketBroker(pq_rx,pq_tx):
 	#ZMQ context
 	context = zmq.Context()
@@ -48,6 +53,7 @@ def PacketBroker(pq_rx,pq_tx):
 		if not pq_rx.empty():
 			socket.send(pq_rx.get())
 			
+			
 		#catch any responses
 		try:
 			#Check what the response is, message or packet to transmit
@@ -64,11 +70,13 @@ def PacketBroker(pq_rx,pq_tx):
 			else:
 				pq_tx.put(s)
 				
+				
 		except zmq.Again:
 			pass		
 		#Sleep a bit
-		time.sleep(0.01)
+		time.sleep(0.001)
 		
+	goodbye(socket)
 	context.destroy()
 	print("Broker Done")
 	

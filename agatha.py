@@ -68,7 +68,7 @@ if __name__ == "__main__":
 	parser = argparse.ArgumentParser(prog='Agatha')
 	parser.add_argument("-v", "--verbose", action='count', help="Get more verbose/debug output.")
 	parser.add_argument("-p", "--port", default=None, help="Specify serial device to connect to.")
-	parser.add_argument("-b", "--baud", default=115200, type=int, help="Baud rate for the serial device.")
+	parser.add_argument("-b", "--baud", default=250000, type=int, help="Baud rate for the serial device.")
 
 	my_args = parser.parse_args()
 	comport = my_args.port
@@ -113,7 +113,7 @@ if __name__ == "__main__":
 		if not comport:
 			comport = input("Enter com port:")
 		try:
-			port = serial.Serial(comport, 115200, timeout=1)
+			port = serial.Serial(comport, baud, timeout=1)
 			connected = True
 		except serial.serialutil.SerialException:
 			print("Failed to connect to:",comport)
@@ -130,7 +130,8 @@ if __name__ == "__main__":
 
 			#Look for start of packet bytes
 			if curr == b'\x55' and prev == b'\xAA':
-			
+				
+				#print("START",int(round(time.time() * 1000)))
 				"""
 				Filter out debug - packet id 0 should be done properly
 				"""
@@ -139,14 +140,21 @@ if __name__ == "__main__":
 				packetid = ord(packetid_byte)
 				
 				if packetid == 0:
-					dbgsize = ord(port.read())
+					dbgsize_byte = port.read()
+					dbgsize = ord(dbgsize_byte)
 					#print(dbgsize)
 					dbgdata = port.read(dbgsize)
-					dbgdata = dbgdata.decode('utf8')
+					#dbgwords = dbgdata.decode('utf8')
+					#print("DEBUG:",dbgwords)
 					
-					print("DEBUG:",dbgdata)
+					dbgpacket = bytearray()
+					dbgpacket.extend(packetid_byte)
+					dbgpacket.extend(dbgsize_byte)
+					dbgpacket.extend(dbgdata)
+					packet_q_rx.put(dbgpacket)
+
 				else:	
-				
+			
 					#Look up the information on this packet
 					packetinfo = dic.get(packetid)
 					
@@ -164,11 +172,13 @@ if __name__ == "__main__":
 						data = port.read(packetlength)
 						
 						debug(("Read packet length: "+str(len(data))))
-					
+						
 						#Read the remaining data
 						data_bytes = bytearray()
 						data_bytes.extend(packetid_byte)
 						data_bytes.extend(data)
+						
+						
 						
 						#If the length is what we expect carry on
 						if len(data) == packetlength:
@@ -180,6 +190,8 @@ if __name__ == "__main__":
 							#Push valid packets onto the queue to the broker process
 							if packet_valid:
 								packet_q_rx.put(data_bytes)
+						
+								#port.write(bytearray(b'\x01\xff'))
 							else:
 								debug("CRC of packet did not match.")
 						else:
@@ -191,12 +203,10 @@ if __name__ == "__main__":
 		
 		if not packet_q_tx.empty():
 			tosend = packet_q_tx.get()
-			#for x in tosend:
-			#	print(x)
-			
-			print("write to serial")
+			#print(int(round(time.time() * 1000)))
+
 			port.write(tosend)
 			
-		time.sleep(0.005)
+		time.sleep(0.001)
 			
-	
+#Changed to 250kBaud
